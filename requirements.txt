@@ -1,0 +1,6 @@
+git+https://github.com/cvg/LightGlue.git
+opencv-python
+jax
+jaxopt
+numpy
+rerun-sdk
