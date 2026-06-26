@@ -1,8 +1,10 @@
-from typing import NamedTuple
+import os
 
 import jax.numpy as jnp
 import jax
 from jaxopt import LevenbergMarquardt
+
+os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.50"
 
 @jax.jit
 def rotvec_to_matrix(rvec):
@@ -168,14 +170,62 @@ def bundle_adjust(initial_cams, initial_points3d, u_2d):
     return(cams, pts_3d)
 
 def bundle_adjustment(params, info, ba_data):
-    # lm = LevenbergMarquardt(residual_fun=residual_func2)
+    num_cams, num_intr, cam_map = info[0]
+    num_frames, num_extr, extr_to_cam, frame_map = info[1]
+    num_pts, num_chan = info[2]
 
-    jnp_params = jnp.asarray(params)
-    # print(jnp_params.shape)
-    # print(info)
+    @jax.jit
+    def deserialize(params, observations):
+        # num_cams, num_intr, cam_map = info[0]
+        num_intr_vals = num_cams * num_intr
+        cameras = params[:num_intr_vals]
+        cam_intrinsics_params = jnp.split(cameras, num_cams)
 
-    r = residual_func2(jnp_params, observations=ba_data, info=info)
+        # num_frames, num_extr, extr_to_cam, frame_map = info[1]
+        num_extr_vals = num_frames * num_extr
+        extrinsics = params[num_intr_vals: num_intr_vals + num_extr_vals]
+        frame_extrinsics_params = jnp.split(extrinsics, num_frames)
 
-    # sol = lm.run(jnp_params, observations=ba_data, info=info)
+        # num_pts, num_chan = info[2]
+        pts_3d = params[num_intr_vals + num_extr_vals:]
+        pts_3d = pts_3d.reshape((num_pts, num_chan))
 
-    return r
+        # u_2d, u_mask = observations
+        # print(u_2d[0].shape)
+
+        in_intr = []
+        in_extr = []
+        in_u2d = []
+        in_mask = []
+        for frame_key in observations.keys():
+            u_2d, mask = observations[frame_key]
+            cam_key = extr_to_cam[frame_key]
+
+            in_intr.append(cam_intrinsics_params[cam_map[cam_key]])
+            # print(frame_key, frame_map[frame_key], len(frame_extrinsics_params))
+            in_extr.append(frame_extrinsics_params[frame_map[frame_key]])
+            in_u2d.append(jnp.asarray(u_2d))
+            in_mask.append(mask)
+
+        in_intr = jnp.asarray(in_intr)
+        in_extr = jnp.asarray(in_extr)
+        in_u2d = jnp.asarray(in_u2d)
+        in_mask = jnp.asarray(in_mask)
+        
+        return(in_intr, in_extr, pts_3d, in_u2d, in_mask)
+    
+    @jax.jit
+    def res_func(params, observations):
+        in_intr, in_extr, pts_3d, in_u2d, in_mask = deserialize(params, observations)
+        batched_residuals = jax.vmap(proj_error, in_axes=[0, 0, None, 0, 0])
+        residuals = batched_residuals(in_intr, in_extr, pts_3d, in_u2d, in_mask)
+        return jnp.concatenate(residuals)
+
+    @jax.jit
+    def fit(params):
+        lm = LevenbergMarquardt(residual_fun=res_func)
+        jnp_params = jnp.asarray(params)
+        sol = lm.run(jnp_params, observations=ba_data)
+        return sol.params
+
+    return fit(params)

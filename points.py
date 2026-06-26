@@ -46,10 +46,12 @@ def get_ba_data(kpt_graph, frame_feats, cams_meta, cam_pose_tree, frames_meta):
     comp = get_filtered_groups(kpt_graph)
     num_pts_3d = len(comp)
     pts_3d = np.zeros((num_pts_3d, 3))
-    uv = {
-        k: [np.zeros((num_pts_3d, 2)), np.zeros(num_pts_3d)]
-        for k in frame_feats.keys()
-    }
+    uv_coords = {k: np.zeros((num_pts_3d, 2)) for k in frame_feats.keys()}
+    uv_masks = {k: np.zeros(num_pts_3d) for k in frame_feats.keys()}
+    # uv = {
+    #     k: [[], []]
+    #     for k in frame_feats.keys()
+    # }
     counts = []
     for pts_3d_idx, pt_group in enumerate(comp):
         if len(pt_group) > 1:
@@ -71,14 +73,21 @@ def get_ba_data(kpt_graph, frame_feats, cams_meta, cam_pose_tree, frames_meta):
                 
                 R = cam_pose_tree.nodes[frame_key]['R']
                 t = cam_pose_tree.nodes[frame_key]['t']
+
+                R = np.diag([1, -1, -1]) @ R
+                r, _ = cv2.Rodrigues(R)
+                r = r.flatten()
+                t = t.flatten()
+                data = np.stack([*r, *t])
+                cam_pose_tree.nodes[frame_key]['Rt'] = data
                 # print(R.shape, t.shape)
                 
                 P = K @ np.hstack([R, t.reshape(3, 1)])
                 projection_matrices.append(P)
                 
                 # Also populate uv for BA
-                uv[frame_key][0][pts_3d_idx, :] = uv_coord
-                uv[frame_key][1][pts_3d_idx] = 1
+                uv_coords[frame_key][pts_3d_idx, :] = uv_coord
+                uv_masks[frame_key][pts_3d_idx] = 1.
 
             # Triangulate using the first two projection matrices in the group
             if len(projection_matrices) >= 2:
@@ -96,4 +105,4 @@ def get_ba_data(kpt_graph, frame_feats, cams_meta, cam_pose_tree, frames_meta):
                 pts_3d_homo = pts_4d[:3, :] / pts_4d[3, :]
                 pts_3d[pts_3d_idx] = pts_3d_homo.flatten()
 
-    return (uv, pts_3d)
+    return (uv_coords, uv_masks, pts_3d)

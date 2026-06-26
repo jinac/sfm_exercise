@@ -205,7 +205,7 @@ class SfM():
         return(out_params, out_deserialize)
         # params = np
 
-    def deserialize_params(self, params):
+    def deserialize_params(self, params, info):
         pass
 
     def run(self):
@@ -226,18 +226,22 @@ class SfM():
         # import pickle
         # with open("kpt_graph.pkl", "wb") as f:
         #     pickle.dump(kpt_graph, f, protocol=pickle.HIGHEST_PROTOCOL)
-        ba_data, p3d = points.get_ba_data(kpt_graph, frame_feats, self.cams, cam_pose_tree, self.frames_meta)
-        params, info = self.serialize_params(p3d, cam_pose_tree)
+        uv_coords, uv_masks, p3d = points.get_ba_data(kpt_graph, frame_feats, self.cams, cam_pose_tree, self.frames_meta)
+        # print(ba_data[1][0][:5])
+        # print(ba_data[1][1][:5])
+        # params, info = self.serialize_params(p3d, cam_pose_tree)
         # print(params.shape)
         # print(info)
         # print(len(ba_data[1][0]))
         # print(len(ba_data[1][1]))
         # print(p3d.shape) 
 
+        import jls_ba
+        pts_3d = jls_ba.ba(self.cams, cam_pose_tree, self.frames_meta, p3d, uv_coords, uv_masks)
         # R, t, pts_3d, pts_2d, cam_params = self.get_init_pose(frame_feats, matches, covis_graph)
         # r = bundle_adjustment.bundle_adjust(cam_params, pts_3d, pts_2d)
-        r = bundle_adjustment.bundle_adjustment(params, info, ba_data)
-        print(r)
+        # r = bundle_adjustment.bundle_adjustment(params, info, ba_data)
+        # print(r)
 
 sfm = SfM()
 sfm.run()
