@@ -20,7 +20,7 @@ def prune_graph(graph, match_thresh=512):
 
 def get_strongest_root(graph):
     node, degree = max(graph.degree, key=lambda x:x[1])
-    print(nx.is_connected(graph))
+    # print(nx.is_connected(graph))
     return node, degree
 
 def calc_rel_pose(pts_a, pts_b):

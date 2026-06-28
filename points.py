@@ -42,10 +42,11 @@ def get_filtered_groups(kpt_graph):
 
     return new_comp
 
-def get_ba_data(kpt_graph, frame_feats, cams_meta, cam_pose_tree, frames_meta):
+def get_ba_data(kpt_graph, frame_feats, cams_meta, cam_pose_tree, frames_meta, images):
     comp = get_filtered_groups(kpt_graph)
     num_pts_3d = len(comp)
     pts_3d = np.zeros((num_pts_3d, 3))
+    colors = np.zeros((num_pts_3d, 3), dtype=np.float32)
     uv_coords = {k: np.zeros((num_pts_3d, 2)) for k in frame_feats.keys()}
     uv_masks = {k: np.zeros(num_pts_3d) for k in frame_feats.keys()}
     # uv = {
@@ -56,6 +57,7 @@ def get_ba_data(kpt_graph, frame_feats, cams_meta, cam_pose_tree, frames_meta):
     for pts_3d_idx, pt_group in enumerate(comp):
         if len(pt_group) > 1:
             counts.append(len(pt_group))
+            color = []
             
             # Collect projection matrices and points for all frames in this group
             projection_matrices = []
@@ -65,6 +67,14 @@ def get_ba_data(kpt_graph, frame_feats, cams_meta, cam_pose_tree, frames_meta):
                 # Get 2D coordinate
                 uv_coord = frame_feats[frame_key]['keypoints'][0][kpt_idx].cpu().numpy()
                 pts_2d_list.append(uv_coord)
+                
+                # Get Color from the first available image in this group
+                if frame_key in images:
+                    img = images[frame_key]
+                    u, v = int(uv_coord[0]), int(uv_coord[1])
+                    h, w = img.shape[:2]
+                    if 0 <= u < w and 0 <= v < h:
+                        color.append(img[v, u])
                 
                 # Get Projection Matrix P = K [R | t]
                 frame_meta = frames_meta[frame_key]
@@ -80,7 +90,7 @@ def get_ba_data(kpt_graph, frame_feats, cams_meta, cam_pose_tree, frames_meta):
                 t = t.flatten()
                 data = np.stack([*r, *t])
                 cam_pose_tree.nodes[frame_key]['Rt'] = data
-                # print(R.shape, t.shape)
+                # print(R.shape)
                 
                 P = K @ np.hstack([R, t.reshape(3, 1)])
                 projection_matrices.append(P)
@@ -88,6 +98,8 @@ def get_ba_data(kpt_graph, frame_feats, cams_meta, cam_pose_tree, frames_meta):
                 # Also populate uv for BA
                 uv_coords[frame_key][pts_3d_idx, :] = uv_coord
                 uv_masks[frame_key][pts_3d_idx] = 1.
+
+            colors[pts_3d_idx] = np.mean(color, axis=0)
 
             # Triangulate using the first two projection matrices in the group
             if len(projection_matrices) >= 2:
@@ -105,4 +117,4 @@ def get_ba_data(kpt_graph, frame_feats, cams_meta, cam_pose_tree, frames_meta):
                 pts_3d_homo = pts_4d[:3, :] / pts_4d[3, :]
                 pts_3d[pts_3d_idx] = pts_3d_homo.flatten()
 
-    return (uv_coords, uv_masks, pts_3d)
+    return (uv_coords, uv_masks, pts_3d, colors)

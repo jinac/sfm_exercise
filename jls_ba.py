@@ -95,7 +95,7 @@ def ba(cams, cam_pose_tree, frames_meta, pts_3d, uv_coords, uv_masks):
     frame_to_idx = {k: idx for idx, k in enumerate(sorted(frames_meta.keys()))}
 
     # print(initial_poses)
-    print(initial_intrinsics)
+    # print(initial_intrinsics)
 
     # print(pose_vars)
     # print(intrinsic_vars)
