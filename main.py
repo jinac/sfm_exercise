@@ -132,7 +132,7 @@ class SfM():
 
         return pts_3d, colors
 
-sfm = SfM()
+sfm = SfM(base_dir="/mnt/e/dataset/sfm/courtyard_dslr_undistorted/courtyard/")
 pts_3d, colors = sfm.run()
 
 rr.init("sfm_test", spawn=True)

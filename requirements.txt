@@ -1,8 +1,8 @@
 git+https://github.com/cvg/LightGlue.git
 git+https://github.com/brentyi/jaxls.git
-opencv-python
 jax
-jaxopt
 jaxlie
+opencv-python
+open3d
 numpy
 rerun-sdk
